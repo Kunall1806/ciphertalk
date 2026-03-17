@@ -1,13 +1,65 @@
 import React, { useState } from 'react';
 import './App.css';
 import ChatScreen from './ChatScreen';
+import AuraBot from './AuraBot';
 
 function App() {
-  const [isLogin, setIsLogin] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
+  const [activeTab, setActiveTab] = useState('chat');
 
   if (isLoggedIn) {
-    return <ChatScreen />;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+        
+        {/* Top Navigation */}
+        <div style={{
+          display: 'flex',
+          background: '#111118',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          padding: '0 20px',
+        }}>
+          <button
+            onClick={() => setActiveTab('chat')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: activeTab === 'chat' ? '#8b5cf6' : 'rgba(255,255,255,0.4)',
+              padding: '16px 24px',
+              cursor: 'pointer',
+              fontSize: '15px',
+              fontWeight: '700',
+              borderBottom: activeTab === 'chat' ? '2px solid #8b5cf6' : '2px solid transparent',
+              transition: 'all 0.3s',
+            }}
+          >
+            💬 Chats
+          </button>
+          <button
+            onClick={() => setActiveTab('aurabot')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: activeTab === 'aurabot' ? '#8b5cf6' : 'rgba(255,255,255,0.4)',
+              padding: '16px 24px',
+              cursor: 'pointer',
+              fontSize: '15px',
+              fontWeight: '700',
+              borderBottom: activeTab === 'aurabot' ? '2px solid #8b5cf6' : '2px solid transparent',
+              transition: 'all 0.3s',
+            }}
+          >
+            🤖 AuraBot
+          </button>
+        </div>
+
+        {/* Content */}
+       <div style={{ flex: 1, overflow: 'hidden', height: 'calc(100vh - 53px)' }}>
+          {activeTab === 'chat' ? <ChatScreen /> : <AuraBot />}
+        </div>
+
+      </div>
+    );
   }
 
   return (
