@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { encryptMessage, decryptMessage } from './encryption';
 import './ChatScreen.css';
 
 const contacts = [
@@ -13,16 +14,48 @@ function ChatScreen() {
   const [selectedContact, setSelectedContact] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [selfDestruct, setSelfDestruct] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(10);
 
   const sendMessage = () => {
     if (newMessage.trim() === '') return;
-    setMessages([...messages, {
-      id: messages.length + 1,
-      text: newMessage,
+
+    const encrypted = encryptMessage(newMessage);
+    const displayText = decryptMessage(encrypted);
+    const msgId = messages.length + 1;
+
+    const newMsg = {
+      id: msgId,
+      text: displayText,
+      encrypted: encrypted,
       sent: true,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }]);
+      time: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      selfDestruct: selfDestruct,
+      timer: selfDestruct ? timerSeconds : null,
+      timeLeft: selfDestruct ? timerSeconds : null,
+    };
+
+    setMessages(prev => [...prev, newMsg]);
     setNewMessage('');
+
+    if (selfDestruct) {
+      let countdown = timerSeconds;
+      const interval = setInterval(() => {
+        countdown--;
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === msgId ? { ...m, timeLeft: countdown } : m
+          )
+        );
+        if (countdown <= 0) {
+          clearInterval(interval);
+          setMessages(prev => prev.filter(m => m.id !== msgId));
+        }
+      }, 1000);
+    }
   };
 
   const handleKey = (e) => {
@@ -34,14 +67,11 @@ function ChatScreen() {
 
       {/* LEFT SIDEBAR */}
       <div className="sidebar">
-
-        {/* Header */}
         <div className="sidebar-header">
           <div className="app-name">🔐 CipherTalk</div>
           <div className="avatar">K</div>
         </div>
 
-        {/* Search */}
         <div className="search-box">
           <input
             type="text"
@@ -50,7 +80,6 @@ function ChatScreen() {
           />
         </div>
 
-        {/* Contact List */}
         <div className="contact-list">
           {contacts.map(contact => (
             <div
@@ -76,7 +105,6 @@ function ChatScreen() {
       <div className="chat-area">
         {selectedContact ? (
           <>
-            {/* Chat Header */}
             <div className="chat-header">
               <div className="chat-avatar">{selectedContact.name[0]}</div>
               <div className="chat-info">
@@ -91,7 +119,6 @@ function ChatScreen() {
               </div>
             </div>
 
-            {/* Messages */}
             <div className="messages-area">
               {messages.length === 0 && (
                 <div className="no-messages">
@@ -101,12 +128,18 @@ function ChatScreen() {
               {messages.map(msg => (
                 <div key={msg.id} className={`message ${msg.sent ? 'sent' : 'received'}`}>
                   <div className="message-text">{msg.text}</div>
-                  <div className="message-time">{msg.time} ✓✓</div>
+                  <div className="message-time">
+                    {msg.time} ✓✓
+                    {msg.selfDestruct && (
+                      <span className="timer-badge">
+                        💣 {msg.timeLeft}s
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Input Area */}
             <div className="input-area">
               <button className="attach-btn">📎</button>
               <input
@@ -117,6 +150,24 @@ function ChatScreen() {
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={handleKey}
               />
+              <button
+                className={`destruct-btn ${selfDestruct ? 'active' : ''}`}
+                onClick={() => setSelfDestruct(!selfDestruct)}
+                title="Self Destruct"
+              >
+                💣
+              </button>
+              {selfDestruct && (
+                <select
+                  className="timer-select"
+                  value={timerSeconds}
+                  onChange={(e) => setTimerSeconds(Number(e.target.value))}
+                >
+                  <option value={10}>10s</option>
+                  <option value={30}>30s</option>
+                  <option value={60}>60s</option>
+                </select>
+              )}
               <button className="send-btn" onClick={sendMessage}>➤</button>
             </div>
           </>
