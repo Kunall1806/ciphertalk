@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import './AuraBot.css';
+import { extractAndSaveMemory, getMemoryContext, detectMood, getMoodTheme } from './memory';
 
-const GEMINI_API_KEY = 'AIzaSyA4KP92zwVKoO2d28DhNTg7L_nu5Yae8Wc';
+const GEMINI_API_KEY = 'AIzaSyC8cWMdtU_Jljbrgm2KrV-c6lL_G5iu5fE';
 
 const personas = [
   { id: 'girlfriend', emoji: '💕', name: 'Girlfriend',
@@ -23,16 +24,30 @@ function AuraBot() {
   ]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [currentMood, setCurrentMood] = useState('neutral');
+  const [moodTheme, setMoodTheme] = useState(getMoodTheme('neutral'));
 
   const sendMessage = async () => {
     if (newMessage.trim() === '' || loading) return;
+
+    // Mood detect karo
+    const mood = detectMood(newMessage);
+    const theme = getMoodTheme(mood);
+    setCurrentMood(mood);
+    setMoodTheme(theme);
+
+    // Memory mein save karo
+    extractAndSaveMemory(newMessage);
+
+    // Memory context lo
+    const memoryContext = getMemoryContext();
 
     const userMsg = {
       id: Date.now(),
       text: newMessage,
       sent: true,
-      time: new Date().toLocaleTimeString([], { 
-        hour: '2-digit', minute: '2-digit' 
+      time: new Date().toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit'
       })
     };
 
@@ -41,6 +56,13 @@ function AuraBot() {
     setLoading(true);
 
     try {
+      // Mood ke hisaab se extra instructions
+      let moodInstruction = '';
+      if (mood === 'sad') moodInstruction = 'User is sad. Be extra gentle, caring and comforting.';
+      if (mood === 'happy') moodInstruction = 'User is happy. Celebrate with them, be enthusiastic!';
+      if (mood === 'excited') moodInstruction = 'User is excited. Match their energy, be excited too!';
+      if (mood === 'angry') moodInstruction = 'User seems frustrated. Be calm, understanding and patient.';
+
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
         {
@@ -49,7 +71,15 @@ function AuraBot() {
           body: JSON.stringify({
             contents: [{
               parts: [{
-                text: `${selectedPersona.prompt}\n\nUser said: "${newMessage}"\n\nReply in 1-3 sentences max. Be natural and emotional.`
+                text: `${selectedPersona.prompt}
+                
+${moodInstruction}
+
+${memoryContext}
+
+User said: "${newMessage}"
+
+Reply in 1-3 sentences max. Be natural, emotional and remember past context if relevant.`
               }]
             }]
           })
@@ -58,13 +88,8 @@ function AuraBot() {
 
       const data = await response.json();
 
-      if (data.error) {
-        throw new Error(data.error.message);
-      }
-
-      if (!data.candidates || !data.candidates[0]) {
-        throw new Error('No response');
-      }
+      if (data.error) throw new Error(data.error.message);
+      if (!data.candidates || !data.candidates[0]) throw new Error('No response');
 
       const botReply = data.candidates[0].content.parts[0].text;
 
@@ -72,18 +97,17 @@ function AuraBot() {
         id: Date.now() + 1,
         text: botReply,
         sent: false,
-        time: new Date().toLocaleTimeString([], { 
-          hour: '2-digit', minute: '2-digit' 
-        })
+        time: new Date().toLocaleTimeString([], {
+          hour: '2-digit', minute: '2-digit'
+        }),
+        mood: mood
       }]);
 
     } catch (error) {
       let errorText = "Thoda network issue hai! Dobara try karo 😅";
-      if (error.message.includes('429')) {
-        errorText = "1 minute wait karo phir try karo ⏱️";
-      } else if (error.message.includes('400') || error.message.includes('403')) {
-        errorText = "API key sahi nahi hai ⚠️";
-      }
+      if (error.message.includes('429')) errorText = "1 minute wait karo ⏱️";
+      if (error.message.includes('400') || error.message.includes('403')) errorText = "API key check karo ⚠️";
+
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         text: errorText,
@@ -108,12 +132,18 @@ function AuraBot() {
   };
 
   return (
-    <div className="aurabot-container">
-      <div className="aurabot-header">
+    <div className="aurabot-container" style={{ background: `linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 100%)` }}>
+
+      {/* Header with Mood */}
+      <div className="aurabot-header" style={{ borderBottom: `1px solid ${moodTheme.accent}40` }}>
         <div className="aurabot-title">🤖 AuraBot {selectedPersona.emoji}</div>
         <div className="aurabot-subtitle">{selectedPersona.name} Mode</div>
+        <div className="mood-indicator" style={{ color: moodTheme.accent }}>
+          {moodTheme.emoji} {currentMood.charAt(0).toUpperCase() + currentMood.slice(1)}
+        </div>
       </div>
 
+      {/* Persona Selector */}
       <div className="persona-selector">
         {personas.map(persona => (
           <button
@@ -126,6 +156,7 @@ function AuraBot() {
         ))}
       </div>
 
+      {/* Messages */}
       <div className="aurabot-messages">
         {messages.map(msg => (
           <div key={msg.id} className={`aura-message ${msg.sent ? 'sent' : 'received'}`}>
@@ -133,7 +164,12 @@ function AuraBot() {
               <div className="bot-avatar">{selectedPersona.emoji}</div>
             )}
             <div className="aura-bubble">
-              <div className="aura-text">{msg.text}</div>
+              <div
+                className="aura-text"
+                style={msg.sent ? {} : { background: moodTheme.bg }}
+              >
+                {msg.text}
+              </div>
               {msg.time && <div className="aura-time">{msg.time}</div>}
             </div>
           </div>
@@ -150,7 +186,8 @@ function AuraBot() {
         )}
       </div>
 
-      <div className="aurabot-input">
+      {/* Input */}
+      <div className="aurabot-input" style={{ borderTop: `1px solid ${moodTheme.accent}40` }}>
         <input
           type="text"
           placeholder={`${selectedPersona.name} se baat karo...`}
@@ -159,15 +196,18 @@ function AuraBot() {
           onChange={(e) => setNewMessage(e.target.value)}
           onKeyPress={handleKey}
           disabled={loading}
+          style={{ borderColor: loading ? 'rgba(255,255,255,0.1)' : `${moodTheme.accent}60` }}
         />
         <button
           className="aura-send"
           onClick={sendMessage}
           disabled={loading}
+          style={{ background: `linear-gradient(135deg, ${moodTheme.accent}, #6366f1)` }}
         >
           {loading ? '...' : '➤'}
         </button>
       </div>
+
     </div>
   );
 }
